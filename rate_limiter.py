@@ -1,54 +1,45 @@
 import boto3
 import json
 from botocore.exceptions import ClientError
+from datetime import datetime, timedelta, timezone
 
 s3 = boto3.client('s3')
 
 BUCKET_NAME = 'my-bucket-change-to-your-name'
-RATE_LIMIT_KEY = 'rate_limits.json'
+RATE_LIMIT_PREFIX = 'rate_limits/'
 
-def atomic_increment(user_id, increment=1, max_attempts=5):
-    for attempt in range(max_attempts):
+def check_rate_limit(user_id, limit, time_window_seconds):
+    current_time = datetime.now(timezone.utc)
+    window_start = current_time - timedelta(seconds=time_window_seconds)
+    
+    # Generate keys for the current time window
+    keys = [f"{RATE_LIMIT_PREFIX}{user_id}/{(window_start + timedelta(seconds=i)).timestamp()}" for i in range(limit)]
+    
+    count = 0
+    for key in keys:
         try:
-            # Get the current rate limit data
-            response = s3.get_object(Bucket=BUCKET_NAME, Key=RATE_LIMIT_KEY)
-            rate_limits = json.loads(response['Body'].read())
-            etag = response['ETag']
-
-            # Increment the user's count
-            if user_id not in rate_limits:
-                rate_limits[user_id] = 0
-            rate_limits[user_id] += increment
-
-            # Try to update the object with the new data
-            s3.put_object(
-                Bucket=BUCKET_NAME,
-                Key=RATE_LIMIT_KEY,
-                Body=json.dumps(rate_limits),
-                IfMatch=etag
-            )
-
-            return rate_limits[user_id]
-
+            # Try to create an object. If it succeeds, increment the count.
+            s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=b'', IfNoneMatch='*')
+            count += 1
+            if count >= limit:
+                return False  # Rate limit exceeded
         except ClientError as e:
             if e.response['Error']['Code'] == 'PreconditionFailed':
-                # Another process updated the object, retry
+                # Object already exists, continue to next key
                 continue
             else:
                 # Handle other errors
                 raise
-
-    raise Exception("Failed to update rate limit after maximum attempts")
-
-def check_rate_limit(user_id, limit):
-    current_count = atomic_increment(user_id)
-    return current_count <= limit
+    
+    return True  # Rate limit not exceeded
 
 # Example usage
 user_id = 'user123'
-rate_limit = 100
+rate_limit = 5
+time_window = 60  # 60 seconds
 
-if check_rate_limit(user_id, rate_limit):
+if check_rate_limit(user_id, rate_limit, time_window):
     print(f"Request allowed for user {user_id}")
 else:
     print(f"Rate limit exceeded for user {user_id}")
+    

@@ -6,15 +6,15 @@ AWS S3 Conditional Requests allow you to perform operations on S3 objects only i
 
 1. **Prevent Data Conflicts**: Ensure you're not overwriting data that has been changed by someone else.
 2. **Save Bandwidth**: Avoid downloading or uploading data unnecessarily.
-3. **Implement Atomic Operations**: Perform updates that either succeed completely or not at all, without needing external locking mechanisms.
+3. **Implement Simple Atomic Operations**: Perform certain operations that either succeed completely or not at all, without needing external locking mechanisms.
 4. **Optimize Performance**: Reduce latency and improve response times in your applications.
 5. **Ensure Data Consistency**: Maintain data integrity in distributed systems and concurrent environments.
 
 In simpler terms, it's like being able to say to S3:
 - "Only give me this file if it has changed since I last saw it."
-- "Only update this file if no one else has changed it since I last saw it."
+- "Only create this file if it doesn't already exist."
 
-This makes it much easier to build applications that work correctly and efficiently, even when many users or processes are working with the same data simultaneously.
+This makes it easier to build applications that work correctly and efficiently, even when many users or processes are working with the same data simultaneously.
 
 ## Repository Purpose
 
@@ -30,21 +30,21 @@ This example demonstrates how to implement an efficient caching mechanism using 
 - Improve application performance by utilizing client-side caching
 - Handle cache invalidation efficiently
 
-### 2. Atomic Operations for Rate Limiting (`rate_limiter.py`)
+### 2. Simple Rate Limiting (`rate_limiter.py`)
 
-This example showcases how to implement atomic operations using S3 Conditional Requests. It demonstrates:
+This example showcases how to implement a basic rate limiting mechanism using S3 Conditional Requests. It demonstrates:
 
-- How to create a distributed rate limiter without additional infrastructure
-- Handling concurrent modifications safely
-- Implementing retry logic for robust operations
+- How to create a distributed rate limiter using S3 objects as markers
+- Using the If-None-Match condition to ensure uniqueness of requests
+- Implementing a time-windowed approach for rate limiting
 
-## TODO examples
+Note: This is not an atomic rate limiter due to limitations in S3's conditional write operations. It serves as a demonstration of using conditional requests within S3's capabilities.
 
-- Optimistic concurrency control for collaborative editing
-- Versioned configurations management
-- Data pipeline integrity checks
-- Audit trail implementation
-- Distributed locking mechanisms
+## Limitations and Considerations
+
+- S3 PutObject operation only supports If-None-Match with the * value, which means "create the object only if it doesn't already exist."
+- True atomic read-modify-update operations are not possible with S3 Conditional Requests alone.
+- The rate limiter example is a simplified approach and may not be suitable for high-concurrency scenarios.
 
 ## Getting Started
 
